@@ -14,7 +14,6 @@ CSRC = # List of C files
 GENC = # List of generated C files
 OBJS = $(patsubst %.c,%.o,$(CSRC) $(GENC))
 LIBS =
-HEADERS = # List of header files
 
 all: $(PROJ).zip
 
@@ -40,25 +39,25 @@ $(PROJ).elf: $(OBJS)
 		--change-section-lma .fuse=0 -O binary $< $@
 
 .PRECIOUS: %.o
-%.o: %.c $(HEADERS)
+%.o: %.c
 	$(CC) $(CFLAGS)  -MMD -MQ '$@' -MF '.$(@F).d' \
 		-c -Wa,-ahlmns=$*.lst -o $@ $<
 
 .PRECIOUS: %.i
-%.i: %.c $(HEADERS)
+%.i: %.c
 	$(CC) $(CFLAGS) -E -o $@ $<
 
 .PRECIOUS: %.s
-%.s: %.c $(HEADERS)
+%.s: %.c
 	$(CC) $(CFLAGS) -S -o $@ $<
 
 .PRECIOUS: %.o
-%.o: %.S $(HEADERS)
+%.o: %.S
 	$(CC) $(CFLAGS) -MMD -MQ '$@' -MF '.$(@F).d' \
 		-c -Wa,-ahlmns=$*.lst -o $@ $<
 
 .PRECIOUS: %.o
-%.o: %.asm $(HEADERS)
+%.o: %.asm
 	$(CC) $(CFLAGS) -MMD -MQ '$@' -MF '.$(@F).d' \
 		-x assembler -c -Wa,-ahlmns=$*.lst -o $@ $<
 
