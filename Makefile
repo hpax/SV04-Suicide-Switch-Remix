@@ -1,12 +1,12 @@
-PROJ    = # Project name here
+PROJ    = tinyflash
 
-MCU     = atmega328p
-FREQ    = 8000000
+MCU     = attiny85
+FREQ    = 1000000
 
 # Size of flash and eeprom in bytes (some programmers want them padded to the
 # full size of the memory)
-FLASHSIZE  = 32768
-EEPROMSIZE = 2048
+FLASHSIZE  = 8192
+EEPROMSIZE = 512
 
 CC      = avr-gcc
 CFLAGS  = -O2 -g -DF_CPU=$(FREQ) -W -Wall -Werror -mmcu=$(MCU)
@@ -15,7 +15,7 @@ PERL    = perl
 
 .SUFFIXES: .c .o .S .s .i .a .asm .elf .hex .bin .zip
 
-CSRC = # List of C files
+CSRC = tinyflash.c
 GENC = # List of generated C files
 OBJS = $(patsubst %.c,%.o,$(CSRC) $(GENC))
 LIBS =
