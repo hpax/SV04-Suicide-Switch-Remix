@@ -3,6 +3,11 @@ PROJ    = # Project name here
 MCU     = atmega328p
 FREQ    = 8000000
 
+# Size of flash and eeprom in bytes (some programmers want them padded to the
+# full size of the memory)
+FLASHSIZE  = 32768
+EEPROMSIZE = 2048
+
 CC      = avr-gcc
 CFLAGS  = -O2 -g -DF_CPU=$(FREQ) -W -Wall -Werror -mmcu=$(MCU)
 OBJCOPY = avr-objcopy
@@ -26,12 +31,14 @@ $(PROJ).elf: $(OBJS)
 
 .PRECIOUS: %.flash.bin
 %.flash.bin: %.elf
-	$(OBJCOPY) -R .eeprom -R .fuse -O binary $< $@
+	$(OBJCOPY) -R .eeprom -R .fuse -O binary \
+		--pad-to $(FLASHSIZE) --gap-fill 0xff $< $@
 
 .PRECIOUS: %.eeprom.bin
 %.eeprom.bin: %.elf
 	$(OBJCOPY) -j .eeprom --set-section-flags=.eeprom="alloc,load" \
-		--change-section-lma .eeprom=0 -O binary $< $@
+		--change-section-lma .eeprom=0 -O binary \
+		--pad-to $(EEPROMSIZE) --gap-fill 0xff $< $@
 
 .PRECIOUS: %.fuses.bin
 %.fuses.bin: %.elf
