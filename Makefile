@@ -1,7 +1,11 @@
 PROJ    = tinyflash
 
+# Target MCU name and frequency
 MCU     = attiny85
 FREQ    = 1000000
+
+# MCU name according to various programmers
+MCU_MINIPRO = attiny85v
 
 # Size of flash and eeprom in bytes (some programmers want them padded to the
 # full size of the memory)
@@ -75,5 +79,11 @@ clean:
 spotless: clean
 	rm -f *~ \#* *.bak
 	rm -rf gen
+
+# Flashing using various programmers
+
+flash_minipro: $(PROJ).zip
+	minipro -p $(MCU_MINIPRO) -c code -w $(PROJ).flash.bin
+	minipro -p $(MCU_MINIPRO) -c data -w $(PROJ).eeprom.bin
 
 -include .*.d
