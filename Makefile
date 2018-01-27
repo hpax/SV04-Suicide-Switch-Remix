@@ -1,4 +1,4 @@
-PROJ    = abcjoy
+PROJ    = # Project name here
 
 MCU     = atmega328p
 FREQ    = 8000000
@@ -8,12 +8,13 @@ CFLAGS  = -O2 -g -DF_CPU=$(FREQ) -W -Wall -Werror -mmcu=$(MCU)
 OBJCOPY = avr-objcopy
 PERL    = perl
 
-.SUFFIXES: .c .o .elf .hex .bin .zip
+.SUFFIXES: .c .o .S .s .i .a .asm .elf .hex .bin .zip
 
-CSRC = abcjoy.c
-GENC = joytbl.c
+CSRC = # List of C files
+GENC = # List of generated C files
 OBJS = $(patsubst %.c,%.o,$(CSRC) $(GENC))
-HEADERS = abcjoy.h
+LIBS =
+HEADERS = # List of header files
 
 all: $(PROJ).zip
 
@@ -22,7 +23,7 @@ all: $(PROJ).zip
 
 .PRECIOUS: %.elf
 $(PROJ).elf: $(OBJS)
-	$(CC) $(CFLAGS) -Wl,-Map=$(PROJ).map -o $@ $(OBJS)
+	$(CC) $(CFLAGS) -Wl,-Map=$(PROJ).map -o $@ $(OBJS) $(LIBS)
 
 .PRECIOUS: %.flash.bin
 %.flash.bin: %.elf
@@ -40,13 +41,33 @@ $(PROJ).elf: $(OBJS)
 
 .PRECIOUS: %.o
 %.o: %.c $(HEADERS)
-	$(CC) $(CFLAGS) -c -Wa,-ahlmns=$*.lst -o $@ $<
+	$(CC) $(CFLAGS)  -MMD -MQ '$@' -MF '.$(@F).d' \
+		-c -Wa,-ahlmns=$*.lst -o $@ $<
 
-joytbl.c: joytbl.pl
-	$(PERL) $< > $@ || ( rm -f $@ ; false )
+.PRECIOUS: %.i
+%.i: %.c $(HEADERS)
+	$(CC) $(CFLAGS) -E -o $@ $<
+
+.PRECIOUS: %.s
+%.s: %.c $(HEADERS)
+	$(CC) $(CFLAGS) -S -o $@ $<
+
+.PRECIOUS: %.o
+%.o: %.S $(HEADERS)
+	$(CC) $(CFLAGS) -MMD -MQ '$@' -MF '.$(@F).d' \
+		-c -Wa,-ahlmns=$*.lst -o $@ $<
+
+.PRECIOUS: %.o
+%.o: %.asm $(HEADERS)
+	$(CC) $(CFLAGS) -MMD -MQ '$@' -MF '.$(@F).d' \
+		-x assembler -c -Wa,-ahlmns=$*.lst -o $@ $<
 
 clean:
-	rm -f *.o *.elf *.bin *.hex *.lst *.map *.zip $(GENC)
+	rm -f *.[soi] *.elf *.bin *.hex *.lst *.map *.zip $(GENC)
+	rm -f .*.d
 
 spotless: clean
 	rm -f *~ \#* *.bak
+	rm -rf gen
+
+-include .*.d

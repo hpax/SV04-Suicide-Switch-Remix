@@ -1,0 +1,14 @@
+*~
+\#*
+*.bak
+*.bin
+*.hex
+*.lst
+*.map
+*.zip
+*.o
+*.elf
+*.d
+*.i
+*.s
+gen/
