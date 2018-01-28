@@ -83,7 +83,11 @@ spotless: clean
 # Flashing using various programmers
 
 flash_minipro: $(PROJ).zip
-	minipro -p $(MCU_MINIPRO) -c code -w $(PROJ).flash.bin
-	minipro -p $(MCU_MINIPRO) -c data -w $(PROJ).eeprom.bin
+	if [ -s $(PROJ).flash.bin ]; then \
+		minipro -p $(MCU_MINIPRO) -c code -w $(PROJ).flash.bin; \
+	fi
+	if [ -s $(PROJ).eeprom.bin ]; then \
+		minipro -p $(MCU_MINIPRO) -c data -w $(PROJ).eeprom.bin; \
+	fi
 
 -include .*.d
