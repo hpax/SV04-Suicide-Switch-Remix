@@ -7,13 +7,16 @@ static void delay(void)
 
 int main(void)
 {
+	/* Initializing... */
+	cli();
+
 	/*
 	 * Outputs are:
 	 * OC0A - PB0 - pin 5
 	 * OC0B - PB1 - pin 6
 	 * OC1B - PB4 - pin 3
 	 */
-	MCUCR = 0;		/* Enable input pullups */
+	MCUCR = 0x20;		/* Enable input pullups, sleep mode = idle */
 	DDRB  = 0x13;		/* PB0,1,4 as outputs */
 	PORTB = 0x3f;		/* Pullups on all inputs */
 
@@ -51,8 +54,10 @@ int main(void)
 	 */
 	DIDR0  = 0x08;		/* Analog input on ADC3/PB3/pin 2 */
 	ADMUX  = 0x03;		/* Single ended input on ADC3 vs Vcc */
-	ADCSRB = 0x00;		/* Free running mode */
-	ADCSRA = 0xe4;		/* Enable, auto trigger, ck/16 = 62.5 kHz */
+	ADCSRA = 0;		/* Disabled for now */
+
+	/* We are now in a "safe" place to enable interrupts */
+	sei();
 
 	/*
 	 * OCR0A = R
@@ -87,29 +92,34 @@ int main(void)
 		delay();
 	}
 
-	for (;;) {
-		uint16_t adc;
-		uint8_t r, g, b;
-		uint8_t sr;
+	/*
+	 * Enable ADC and ADC interrupt
+	 */
+	ADCSRB = 0x00;		/* Free running mode */
+	ADCSRA = 0xec;		/* Enable, auto trigger, IRQ,
+				   ck/16 = 62.5 kHz */
+	for (;;)
+		sleep_cpu();	/* Actual work is done in interrupt handler */
+}
 
-		do {
-			sr = ADCSRA;
-		} while (!(sr & 0x10));
-		ADCSRA = sr;	/* Clear flag */
+/* ADC conversion complete interrupt routine */
+ISR(ADC_vect)
+{
+	uint16_t adc;
+	uint8_t r, g, b;
 
-		adc = ADCL;
-		adc += (uint16_t)ADCH << 8;
+	adc = ADCL;
+	adc += (uint16_t)ADCH << 8;
 
-		/* Guard band to make sure we go to black */
-		const uint16_t guard = 32;
-		adc = (adc < guard) ? 0 : adc-guard;
+	/* Guard band to make sure we go to black */
+	const uint16_t guard = 32;
+	adc = (adc < guard) ? 0 : adc-guard;
 
-		r = adc >> 2;
-		g = (adc < 341) ? 0 : ((adc-341)*3) >> 3;
-		b = (adc < 682) ? 0 : ((adc-682)*3) >> 2;
+	r = adc >> 2;
+	g = (adc < 341) ? 0 : ((adc-341)*3) >> 3;
+	b = (adc < 682) ? 0 : ((adc-682)*3) >> 2;
 
-		OCR0A = (uint8_t)~r;
-		OCR0B = (uint8_t)~g;
-		OCR1B = (uint8_t)~b;
-	}
+	OCR0A = (uint8_t)~r;
+	OCR0B = (uint8_t)~g;
+	OCR1B = (uint8_t)~b;
 }
