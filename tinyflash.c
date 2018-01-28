@@ -112,7 +112,7 @@ ISR(ADC_vect)
 	adc += (uint16_t)ADCH << 8;
 
 	/* Guard band to make sure we go to black */
-	const uint16_t guard = 32;
+	const uint16_t guard = 64;
 	adc = (adc < guard) ? 0 : adc-guard;
 
 	r = adc >> 2;
