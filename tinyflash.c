@@ -2,7 +2,7 @@
 
 static void delay(void)
 {
-	_delay_ms(20);
+	_delay_ms(2);
 }
 
 int main(void)
@@ -47,79 +47,69 @@ int main(void)
 	OCR1B = 255;		     /* Off */
 
 	/*
+	 * ADC input programming
+	 */
+	DIDR0  = 0x08;		/* Analog input on ADC3/PB3/pin 2 */
+	ADMUX  = 0x03;		/* Single ended input on ADC3 vs Vcc */
+	ADCSRB = 0x00;		/* Free running mode */
+	ADCSRA = 0xe4;		/* Enable, auto trigger, ck/16 = 62.5 kHz */
+
+	/*
 	 * OCR0A = R
 	 * OCR0B = G
 	 * OCR1B = B
 	 */
+	/* Pulse R */
+	for (uint8_t i = 1; i; i++) {
+		OCR0A = (uint8_t)~i;
+		delay();
+	}
+	for (uint8_t i = 254; i != 255; i--) {
+		OCR0A = (uint8_t)~i;
+		delay();
+	}
+	/* Pulse G */
+	for (uint8_t i = 1; i; i++) {
+		OCR0B = (uint8_t)~i;
+		delay();
+	}
+	for (uint8_t i = 254; i != 255; i--) {
+		OCR0B = (uint8_t)~i;
+		delay();
+	}
+	/* Pulse B */
+	for (uint8_t i = 1; i; i++) {
+		OCR1B = (uint8_t)~i;
+		delay();
+	}
+	for (uint8_t i = 254; i != 255; i--) {
+		OCR1B = (uint8_t)~i;
+		delay();
+	}
+
 	for (;;) {
-		/* Pulse R */
-		for (uint8_t i = 1; i; i++) {
-			OCR0A = (uint8_t)~i;
-			delay();
-		}
-		for (uint8_t i = 254; i != 255; i--) {
-			OCR0A = (uint8_t)~i;
-			delay();
-		}
-		/* Pulse G */
-		for (uint8_t i = 1; i; i++) {
-			OCR0B = (uint8_t)~i;
-			delay();
-		}
-		for (uint8_t i = 254; i != 255; i--) {
-			OCR0B = (uint8_t)~i;
-			delay();
-		}
-		/* Pulse B */
-		for (uint8_t i = 1; i; i++) {
-			OCR1B = (uint8_t)~i;
-			delay();
-		}
-		for (uint8_t i = 254; i != 255; i--) {
-			OCR1B = (uint8_t)~i;
-			delay();
-		}
-#if 0
-		/* K -> R */
-		for (uint8_t i = 1; i; i++) {
-			OCR0A = (uint8_t)~i;
-			delay();
-		}
-		/* R -> Y */
-		for (uint8_t i = 1; i; i++) {
-			OCR0B = (uint8_t)~i;
-			delay();
-		}
-		/* Y -> G */
-		for (uint8_t i = 254; i != 255; i--) {
-			OCR0A = (uint8_t)~i;
-			delay();
-		}
-		/* G -> C */
-		for (uint8_t i = 1; i; i++) {
-			OCR1B = (uint8_t)~i;
-			delay();
-		}
-		/* C -> B */
-		for (uint8_t i = 254; i != 255; i--) {
-			OCR0B = (uint8_t)~i;
-			delay();
-		}
-		/* B -> M */
-		for (uint8_t i = 1; i; i++) {
-			OCR0A = (uint8_t)~i;
-			delay();
-		}
-		/* M -> W */
-		for (uint8_t i = 1; i; i++) {
-			OCR0B = (uint8_t)~i;
-			delay();
-		}
-		/* W -> K */
-		for (uint8_t i = 254; i != 255; i--) {
-			OCR0A = OCR0B = OCR1B = (uint8_t)~i;
-			delay();
-		}
-#endif
+		uint16_t adc;
+		uint8_t r, g, b;
+		uint8_t sr;
+
+		do {
+			sr = ADCSRA;
+		} while (!(sr & 0x10));
+		ADCSRA = sr;	/* Clear flag */
+
+		adc = ADCL;
+		adc += (uint16_t)ADCH << 8;
+
+		/* Guard band to make sure we go to black */
+		const uint16_t guard = 32;
+		adc = (adc < guard) ? 0 : adc-guard;
+
+		r = adc >> 2;
+		g = (adc < 341) ? 0 : ((adc-341)*3) >> 3;
+		b = (adc < 682) ? 0 : ((adc-682)*3) >> 2;
+
+		OCR0A = (uint8_t)~r;
+		OCR0B = (uint8_t)~g;
+		OCR1B = (uint8_t)~b;
 	}
 }
