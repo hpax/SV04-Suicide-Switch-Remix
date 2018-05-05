@@ -16,9 +16,9 @@ int main(void)
 	 * OC0B - PB1 - pin 6
 	 * OC1B - PB4 - pin 3
 	 */
-	MCUCR = 0x20;		/* Enable input pullups, sleep mode = idle */
-	DDRB  = 0x13;		/* PB0,1,4 as outputs */
-	PORTB = 0x3f;		/* Pullups on all inputs */
+	MCUCR = 0x20;		/* Disable input pullups, sleep mode = idle */
+	DDRB  = 0x37;		/* PB0,1,4 as outputs; PB2,5 unused so drive to GND */
+	PORTB = 0x00;		/* Drive everything to zero initially */
 
 	/* Timer interrupt and status */
 	TIMSK  = 0;
@@ -112,7 +112,7 @@ ISR(ADC_vect)
 	adc += (uint16_t)ADCH << 8;
 
 	/* Guard band to make sure we go to black */
-	const uint16_t guard = 64;
+	const uint16_t guard = 32;
 	adc = (adc < guard) ? 0 : adc-guard;
 
 	r = adc >> 2;
