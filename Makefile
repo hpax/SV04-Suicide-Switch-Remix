@@ -19,7 +19,7 @@ PERL    = perl
 
 .SUFFIXES: .c .o .S .s .i .a .asm .elf .hex .bin .zip
 
-CSRC = tinyflash.c
+CSRC = nightlight.c
 GENC = # List of generated C files
 OBJS = $(patsubst %.c,%.o,$(CSRC) $(GENC))
 LIBS =
