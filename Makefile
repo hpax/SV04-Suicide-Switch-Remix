@@ -1,4 +1,4 @@
-PROJ    = tinyflash
+PROJ    = nightlight
 
 # Target MCU name and frequency
 MCU     = attiny85

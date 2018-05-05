@@ -1,4 +1,4 @@
-#include "tinyflash.h"
+#include "nightlight.h"
 
 static void delay(void)
 {
