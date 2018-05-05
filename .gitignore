@@ -12,3 +12,8 @@
 *.i
 *.s
 gen/
+*.orig
+*.rej
+*.patch
+*.diff
+diff
