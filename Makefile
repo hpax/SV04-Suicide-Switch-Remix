@@ -82,12 +82,13 @@ spotless: clean
 
 # Flashing using various programmers
 
+# Not really sure why we need to disable verification
 flash_minipro: $(PROJ).zip
 	if [ -s $(PROJ).flash.bin ]; then \
 		minipro -p $(MCU_MINIPRO) -c code -w $(PROJ).flash.bin; \
 	fi
 	if [ -s $(PROJ).eeprom.bin ]; then \
-		minipro -p $(MCU_MINIPRO) -c data -w $(PROJ).eeprom.bin; \
+		minipro -v -p $(MCU_MINIPRO) -c data -w $(PROJ).eeprom.bin; \
 	fi
 
 -include .*.d
