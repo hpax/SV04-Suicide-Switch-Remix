@@ -1,3 +1,6 @@
+#ifndef UTIL_H
+#define UTIL_H
+
 #include <stddef.h>
 #include <stdbool.h>
 #include <inttypes.h>
@@ -10,3 +13,6 @@
 
 #define likely(x)   __builtin_expect(!!(x), true)
 #define unlikely(x) __builtin_expect(!!(x), false)
+
+#endif /* UTIL_H */
+

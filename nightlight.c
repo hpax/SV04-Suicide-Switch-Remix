@@ -1,4 +1,4 @@
-#include "nightlight.h"
+#include "util.h"
 
 static void delay(void)
 {
