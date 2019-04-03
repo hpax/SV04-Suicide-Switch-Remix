@@ -5,6 +5,29 @@ static void delay(void)
 	_delay_ms(2);
 }
 
+/* Lowest and highest ADC values seen, stored in EEPROM */
+static uint16_t adc_min, adc_max;
+static EEMEM uint32_t eeprom_adc = UINT32_C(511) + (UINT32_C(512) << 16);
+
+static void read_adc_limits(void)
+{
+	uint32_t eeval;
+
+	eeval = eeprom_read_dword(&eeprom_adc);
+	adc_min = (uint16_t)eeval;
+	adc_max = (uint16_t)(eeval >> 16);
+}
+
+static void write_adc_limits(void)
+{
+	uint32_t eeval;
+
+	eeval = adc_min + ((uint32_t)adc_max << 16);
+	eeprom_write_dword(&eeprom_adc, eeval);
+}
+
+static volatile bool write_eeprom = false;
+
 int main(void)
 {
 	/* Initializing... */
@@ -56,6 +79,9 @@ int main(void)
 	ADMUX  = 0x03;		/* Single ended input on ADC3 vs Vcc */
 	ADCSRA = 0;		/* Disabled for now */
 
+	/* Read known ADC limits */
+	read_adc_limits();
+
 	/* We are now in a "safe" place to enable interrupts */
 	sei();
 
@@ -98,8 +124,13 @@ int main(void)
 	ADCSRB = 0x00;		/* Free running mode */
 	ADCSRA = 0xec;		/* Enable, auto trigger, IRQ,
 				   ck/16 = 62.5 kHz */
-	for (;;)
+	for (;;) {
+		if (unlikely(write_eeprom)) {
+			write_eeprom = false;
+			write_adc_limits();
+		}
 		sleep_cpu();	/* Actual work is done in interrupt handler */
+	}
 }
 
 /* ADC conversion complete interrupt routine */
@@ -107,19 +138,45 @@ ISR(ADC_vect)
 {
 	uint16_t adc;
 	uint8_t r, g, b;
+	static uint8_t eeprom_ctr = 0;
 
 	adc = ADCL;
 	adc += (uint16_t)ADCH << 8;
 
+	/* Check to see if we have new limits */
+	const uint8_t eeprom_delay = 64; /* Write max 1 per second */
+	if (adc < adc_min) {
+		adc_min = adc;
+		eeprom_ctr = eeprom_delay;
+	}
+	if (adc > adc_max) {
+		adc_max = adc;
+		eeprom_ctr = eeprom_delay;
+	}
+
+	/* Scale the ADC values to the range [0, 2^15+guard) */
+	const uint16_t guard = 512;
+	adc -= adc_min;
+	adc = (uint32_t)adc * (0x7fff + guard) / (adc_max - adc_min);
+
 	/* Guard band to make sure we go to black */
-	const uint16_t guard = 32;
 	adc = (adc < guard) ? 0 : adc-guard;
 
-	r = adc >> 2;
-	g = (adc < 341) ? 0 : ((adc-341)*3) >> 3;
-	b = (adc < 682) ? 0 : ((adc-682)*3) >> 2;
+	r = adc >> 7;
+	g = (adc < 0x2aaa) ? 0 : ((adc-0x2aaa)*3) >> 8;
+	b = (adc < 0x5555) ? 0 : ((adc-0x5555)*3) >> 7;
 
 	OCR0A = (uint8_t)~r;
 	OCR0B = (uint8_t)~g;
 	OCR1B = (uint8_t)~b;
+
+	/* Do we need to update the eeprom? */
+	if (eeprom_ctr > 1)
+		eeprom_ctr--;
+
+	if (eeprom_ctr != 1)
+		return;
+
+	write_eeprom = true;
+	eeprom_ctr = 0;
 }
