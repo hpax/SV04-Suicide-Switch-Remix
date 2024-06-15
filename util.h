@@ -15,4 +15,3 @@
 #define unlikely(x) __builtin_expect(!!(x), false)
 
 #endif /* UTIL_H */
-

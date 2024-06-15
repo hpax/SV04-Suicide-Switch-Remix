@@ -1,11 +1,11 @@
-PROJ    = nightlight
+PROJ    = onoff
 
 # Target MCU name and frequency
 MCU     = attiny85
 FREQ    = 1000000
 
 # MCU name according to various programmers
-MCU_MINIPRO = attiny85v
+MCU_MINIPRO = attiny85
 
 # Size of flash and eeprom in bytes (some programmers want them padded to the
 # full size of the memory)
@@ -19,7 +19,7 @@ PERL    = perl
 
 .SUFFIXES: .c .o .S .s .i .a .asm .elf .hex .bin .zip
 
-CSRC = nightlight.c
+CSRC = onoff.c
 GENC = # List of generated C files
 OBJS = $(patsubst %.c,%.o,$(CSRC) $(GENC))
 LIBS =
