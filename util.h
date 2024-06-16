@@ -14,4 +14,6 @@
 #define likely(x)   __builtin_expect(!!(x), true)
 #define unlikely(x) __builtin_expect(!!(x), false)
 
+#define ARRAY_SIZE(x) (sizeof(x)/(sizeof((x)[0])))
+
 #endif /* UTIL_H */
