@@ -49,6 +49,10 @@ $(PROJ).elf: $(OBJS)
 	$(OBJCOPY) -j .fuse --set-section-flags=.fuse="alloc,load" \
 		--change-section-lma .fuse=0 -O binary $< $@
 
+.PRECIOUS: %.fuses.conf
+%.fuses.conf: %.fuses.bin
+	$(PERL) -e 'read(STDIN,$$n,3); printf "fuses_lo = 0x%x\nfuses_hi = 0x%x\nfuses_ext = 0x%x\nlock_byte = 0xff\n",unpack("C*",$$n);' < $< > $@
+
 .PRECIOUS: %.o
 %.o: %.c
 	$(CC) $(CFLAGS)  -MMD -MQ '$@' -MF '.$(@F).d' \
@@ -83,7 +87,10 @@ spotless: clean
 # Flashing using various programmers
 
 # Not really sure why we need to disable verification
-flash_minipro: $(PROJ).zip
+flash_minipro: $(PROJ).zip $(PROJ).fuses.conf
+	if [ -s $(PROJ).fuses.bin ]; then \
+		minipro -p $(MCU_MINIPRO) -c config -w $(PROJ).fuses.conf; \
+	fi
 	if [ -s $(PROJ).flash.bin ]; then \
 		minipro -p $(MCU_MINIPRO) -c code -w $(PROJ).flash.bin; \
 	fi

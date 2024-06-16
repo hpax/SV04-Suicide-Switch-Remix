@@ -6,6 +6,7 @@
 *.lst
 *.map
 *.zip
+*.fuses.conf
 *.o
 *.elf
 *.d
