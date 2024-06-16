@@ -16,13 +16,13 @@ FUSES = {
 #define LEDB_PWM	255
 
 #define LED_COMMON_ANODE	1
-#define TCRCOM		(LED_COMMON_ANODE ? 3 : 2)
 
-/* Pinmasks */
+/* Pinmasks - these are PBx port bit numbers, not physical pins! */
 #define PINMASK_OFF	(1U << 5)
 #define PINMASK_BUTTON	(1U << 3)
-#define PINMASK_SSR	(1U << 7)
-#define PINMASK_LEDS	((1U << 3)|(1U << 5)|(1U << 6))
+#define PIN_SSR		2
+#define PINMASK_SSR	(1U << PIN_SSR)
+#define PINMASK_LEDS	((1U << 0)|(1U << 1)|(1U << 4))
 
 enum led {
     LED_R,
@@ -33,9 +33,9 @@ enum led {
 static inline void set_led(enum led led, uint8_t val)
 {
     switch (led) {
-    case LED_R: OCR1B = ~val; break;
-    case LED_G: OCR0B = ~val; break;
-    case LED_B: OCR0A = ~val; break;
+    case LED_R: OCR1B = val; break;
+    case LED_G: OCR0B = val; break;
+    case LED_B: OCR0A = val; break;
     }
 }
 
@@ -43,6 +43,10 @@ static void init(void)
 {
     /* Initializing... */
     cli();
+
+    /* Interrupt control */
+    GIMSK = 0;
+    PCMSK = 0;
 
     /*
      * Inputs:
@@ -65,6 +69,26 @@ static void init(void)
     TIMSK  = 0;
     TIFR   = 0;
 
+    /* COMxx values */
+#define TCRCOM		(LED_COMMON_ANODE ? 3 : 2)
+
+    /*
+     * Timer 1 programming
+     *
+     * HARDWARE ERRATUM: COM1Ax must be = COM1Bx or OC1B PWM output
+     * does not work.  Fortunately the PWM from timer 0 seems to take
+     * priority on pin PB1.
+     */
+    /* OC1B enabled, inverted PWM mode;  */
+#define GTCCR_CONFIG	((1 << 6) | (TCRCOM << 4))
+    /* Bits to be held until after configuration */
+#define GTCCR_SYNC	((1 << 7) | (1 << 0))
+
+    GTCCR = GTCCR_CONFIG | GTCCR_SYNC;
+    PLLCSR = 0;
+    TCCR1 = (1 << 7) | (0 << 6) | (TCRCOM << 4) | (1 << 0);
+    OCR1C = 255;		     /* Run from 0 to 255 */
+
     /*
      * Timer 0 programming
      *
@@ -74,22 +98,21 @@ static void init(void)
     TCCR0A = (TCRCOM << 6) | (TCRCOM << 4) | (1 << 0);
     TCCR0B = (0 << 3) | (1 << 0);
 
-    /*
-     * Timer 1 programming
-     *
-     * HARDWARE ERRATUM: COM1Ax must be = COM1Bx or OC1B PWM output
-     * does not work.  Fortunately the PWM from timer 0 seems to take
-     * priority on pin PB1.
-     */
-    PLLCSR = 0;
-    TCCR1 = (1 << 7) | (0 << 6) | (TCRCOM << 4) | (1 << 0);
-    GTCCR = (1 << 6) | (TCRCOM << 4); /* OC1B enabled, inverted PWM mode */
-    OCR1C = 255;		     /* Run from 0 to 255 */
-
     /* Disable all LEDs */
     set_led(LED_R, 0);
     set_led(LED_G, 0);
     set_led(LED_B, 0);
+
+    /* Enable to PWM counters */
+    GTCCR = GTCCR_CONFIG;
+
+    /* If we ever do interrupt stuff, should be OK now... */
+    sei();
+}
+
+static inline bool button_pressed(void)
+{
+    return !(PINB & PINMASK_BUTTON);
 }
 
 static void loop(void)
@@ -100,17 +123,23 @@ static void loop(void)
      * already off.
      */
 
-    /* This can be edited; can use eeprom to preserve pre-powerfail state */
+    /*
+     * This can be edited; can use eeprom to preserve pre-powerfail state.
+     */
     bool power  = false;	/* Off */
-    bool button = false;	/* Not pressed */
-    unsigned int button_ctr   = 0;
+
+
+    bool button = button_pressed();
+
+    /* Debounce counters */
+    unsigned int button_ctr   = button ? 32768UL : 0;
     unsigned int poweroff_ctr = 0;
     unsigned int poweron_ctr  = 0; /* Time after poweron until OFF valid  */
 
-    const unsigned int button_ctr_incr = 65536UL/256;
-    const unsigned int button_ctr_decr = 65536UL/16;
+    const unsigned int button_ctr_incr = 65536ULL/256;
+    const unsigned int button_ctr_decr = 65536ULL/16;
 
-    const unsigned int poweroff_incr   = 65536UL/256;
+    const unsigned int poweroff_incr   = 65536ULL/256;
     const unsigned int poweron_incr    = 1;
 
     while (true) {
@@ -121,11 +150,10 @@ static void loop(void)
 	set_led(LED_R, power  ? 0 : LEDR_PWM);
 	set_led(LED_B, power  ? LEDB_PWM : 0);
 
-	if (power != !!(PORTB & PINMASK_SSR))
-	    PINB = PINMASK_SSR;
+	PINB = (PINB ^ -(uint8_t)power) & PINMASK_SSR;
 
 	do {
-	    uint8_t pb = PORTB;
+	    uint8_t pb = PINB;
 
 	    if (!(pb & PINMASK_BUTTON)) {
 		if (button_ctr <= ~button_ctr_incr) {
@@ -171,8 +199,74 @@ static void loop(void)
     }
 }
 
+static void delay(void)
+{
+    _delay_ms(2);
+}
+
+static void test_leds(void)
+{
+    set_led(LED_R, 0);
+    set_led(LED_G, 0);
+    set_led(LED_B, 0);
+
+    for (uint8_t n = 0; n < 8; n++) {
+	/* K->R */
+	for (uint8_t i = 1; i; i++) {
+	    set_led(LED_R, i);
+	    delay();
+	}
+
+	/* R -> Y */
+	for (uint8_t i = 1; i; i++) {
+	    set_led(LED_G, i);
+	    delay();
+	}
+
+	/* Y -> G */
+	for (uint8_t i = 254; i != 255; i--) {
+	    set_led(LED_R, i);
+	    delay();
+	}
+
+	/* G -> C */
+	for (uint8_t i = 1; i; i++) {
+	    set_led(LED_B, i);
+	    delay();
+	}
+
+	/* C -> B */
+	for (uint8_t i = 254; i != 255; i--) {
+	    set_led(LED_G, i);
+	    delay();
+	}
+
+	/* B -> M */
+	for (uint8_t i = 1; i; i++) {
+	    set_led(LED_R, i);
+	    delay();
+	}
+
+	/* M -> W */
+	for (uint8_t i = 1; i; i++) {
+	    set_led(LED_G, i);
+	    delay();
+	}
+
+	/* W -> K */
+	for (uint8_t i = 254; i != 255; i--) {
+	    set_led(LED_R, i);
+	    set_led(LED_G, i);
+	    set_led(LED_B, i);
+	    delay();
+	}
+    }
+}
+
 int main(void)
 {
     init();
+    if (button_pressed())
+	test_leds();
     loop();
 }
