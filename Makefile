@@ -26,7 +26,7 @@ LIBS =
 
 all: $(PROJ).zip
 
-%.zip: %.flash.bin %.eeprom.bin %.fuses.bin
+%.zip: %.flash.bin %.eeprom.bin %.fuses.bin %.fuses.conf
 	zip -9 -o $@ $^
 
 .PRECIOUS: %.elf
@@ -87,7 +87,7 @@ spotless: clean
 # Flashing using various programmers
 
 # Not really sure why we need to disable verification
-flash_minipro: $(PROJ).zip $(PROJ).fuses.conf
+flash_minipro: $(PROJ).zip
 	if [ -s $(PROJ).fuses.bin ]; then \
 		minipro -p $(MCU_MINIPRO) -c config -w $(PROJ).fuses.conf; \
 	fi
