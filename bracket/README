@@ -4,3 +4,7 @@ used with an RGB LED pushbutton.
 The bracket attaches to the bottom of the front beam, immediately to
 the left of the LCD display. Attach with two 20 mm M3 screws and
 T-nuts.
+
+Note: it is not technically necessary to use an RGB pushbutton. A
+one- or two-color pushbutton can be used just as well; the
+microcontroller can even dim or pulse the LED(s) if desirable.
