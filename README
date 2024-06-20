@@ -33,3 +33,9 @@ the latter. The pin that should be connected to the microcontroller
 matches the one facing to the REAR of the SV04 mainboard connector J2
 (yellow color on the adjacent wires.) Either kind of cable can be
 used; simply rotate the connector on the stripboard appropriately.
+
+Instead of using an SSR, you can opt to upgrade your power supply to
+one which supports remote power control. However, most power supplies
+are *active low* unlike the SSR, so in that case you will need to
+change the polarity of the output in the firmware; you should also
+remove resistor R4.
