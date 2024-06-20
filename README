@@ -26,3 +26,10 @@ Arduino build environment or boot loader. Note that since all 6 I/O
 pins are in use, the RESET DISABLE fuse needs to be programmed, and a
 standalone (high voltage) programmer needs to be used. I recommend
 socketing the MCU.
+
+If you get a precrimped JST cable you apparently want to be careful
+with the pinout (straight or crossover.) I found myself having bought
+the latter. The pin that should be connected to the microcontroller
+matches the one facing to the REAR of the SV04 mainboard connector J2
+(yellow color on the adjacent wires.) Either kind of cable can be
+used; simply rotate the connector on the stripboard appropriately.
