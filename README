@@ -15,3 +15,9 @@ LED_COMMON_ANODE.)
 As the circuit is very simple, I used a stripboard rather than waiting
 for a custom PCB. However, a custom PCB would be smaller, and could be
 made more robust.
+
+The firmware uses avr-gcc and avr-libc; it does not require the
+Arduino build environment or boot loader. Note that since all 6 I/O
+pins are in use, the RESET DISABLE fuse needs to be programmed, and a
+standalone (high voltage) programmer needs to be used. I recommend
+socketing the MCU.
