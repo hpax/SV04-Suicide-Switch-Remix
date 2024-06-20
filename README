@@ -4,13 +4,18 @@ microcontroller.
 
 The bracket in this tree holds a 16 mm (hole diameter) pushbutton.
 
-It is not technically necessary to use an RGB pushbutton. A
-one- or two-color pushbutton can be used just as well; the
-microcontroller can even dim or pulse the LED(s) if desirable.
-
 Either common anode or common cathode LED buttons can be used; the
 prebuilt firmware is configured for common anode (see
 LED_COMMON_ANODE.)
+
+It is not technically necessary to use an RGB pushbutton. A
+one- or two-color pushbutton can be used just as well; the
+microcontroller can even dim or pulse the LED(s) if desirable. The
+prebuilt firmware uses the LEDs as follows:
+
+	RED	- AC power available, power off
+	GREEN	- Button is pressed
+	BLUE	- Power on
 
 As the circuit is very simple, I used a stripboard rather than waiting
 for a custom PCB. However, a custom PCB would be smaller, and could be
