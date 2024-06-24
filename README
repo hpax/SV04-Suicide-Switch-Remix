@@ -39,3 +39,27 @@ one which supports remote power control. However, most power supplies
 are *active low* unlike the SSR, so in that case you will need to
 change the polarity of the output in the firmware; you should also
 remove resistor R4.
+
+To enable the M81 poweroff G-code command, you need a patch to the
+mainboard firmware to define the following options in the Marlin
+pinout configuration:
+
+#define SUICIDE_PIN		PE4	/* Connector J2 */
+#define SUICIDE_PIN_STATE	LOW
+
+You can use bjoern70's patched firmware:
+
+  https://github.com/Bjoern70/SV04-IDEX-3D-Printer-Mainboard-Source-code
+
+or I have a patch to johncarlson21's Marlin 2.1.x tree:
+
+  https://github.com/hpax/SV04-Marlin-2.1.x.git
+
+Both of those requires the appropriate display firmware update.
+
+Alternatively, adding the above two lines into the file
+Marlin/src/pins/stm32f1/pins_CREALITY_V4.h of the stock Sovol firmware
+should work too (in which case a display firmware change should not
+be necessary as long as you are running the latest one already):
+
+  https://github.com/Sovol3d/SV04-IDEX-3D-Printer-Mainboard-Source-code.git
