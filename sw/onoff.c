@@ -215,7 +215,7 @@ static void test_leds(void)
     struct rgbs {
 	int8_t r, g, b;
     };
-    static const struct rgbs fades[] = {
+    static const PROGMEM struct rgbs fades[] = {
 	{ +1,  0,  0 },		/* K > R */
 	{  0, +1,  0 },		/* R > Y */
 	{ -1,  0,  0 },		/* Y > G */
