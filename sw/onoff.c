@@ -1,4 +1,7 @@
 #include "util.h"
+#include "pins.h"
+#include "timer.h"
+#include "led.h"
 
 /* Fuse settings */
 FUSES = {
@@ -10,35 +13,66 @@ FUSES = {
     .extended	= EFUSE_DEFAULT
 };
 
-/* LED intensities */
-#define LEDR_PWM	255
-#define LEDG_PWM	255
-#define LEDB_PWM	255
+#ifdef EEPROM
 
-#define LED_COMMON_ANODE	1
-
-/* Pinmasks - these are PBx port bit numbers, not physical pins! */
-#define PIN_OFF		5
-#define PINMASK_OFF	(1U << PIN_OFF)
-#define PIN_BUTTON	3
-#define PINMASK_BUTTON	(1U << PIN_BUTTON)
-#define PIN_SSR		2
-#define PINMASK_SSR	(1U << PIN_SSR)
-#define PINMASK_LEDS	((1U << 0)|(1U << 1)|(1U << 4))
-
-enum led {
-    LED_R,
-    LED_G,
-    LED_B
+/*
+ * Interrupt-driven EEPROM handler. Two copies of the EEPROM are cached
+ * in memory: one which reflects the current desired state, and one which
+ * reflects the current programmed state.
+ */
+struct eeprom_struct {
+    bool power_status;
 };
+static EEMEM struct eeprom_struct eeprom;
+static volatile struct eeprom_struct ee; /* Data requested to eeprom */
+static struct eeprom_struct eec; /* Copy of the programmed eeprom */
+static volatile uint8_t ee_update_offset;
 
-static inline void set_led(enum led led, uint8_t val)
+ISR(EE_RDY_vect, ISR_BLOCK)
 {
-    switch (led) {
-    case LED_R: OCR1B = val; break;
-    case LED_G: OCR0B = val; break;
-    case LED_B: OCR0A = val; break;
+    uint8_t offs = ee_update_offset;
+    bool done = false;
+
+    while (!done) {
+	const volatile uint8_t * const eep = (const uint8_t *)&ee;
+	uint8_t * const eecp = (uint8_t *)&eec;
+	uint8_t o = offs;
+
+	offs++;
+	if (offs == (uint8_t)sizeof eeprom) {
+	    EECR &= ~(1 << EERIE);
+	    done = true;
+	}
+
+	uint8_t v = eep[o];
+	if (v != eecp[o]) {
+	    uint16_t a = (size_t)&eeprom + offs;
+	    EEARH = a >> 8;
+	    EEARL = (uint8_t)a;
+	    EEDR = v;
+	    EECR |= 1 << EEMPE;
+	    EECR |= 1 << EEPE;
+	    done = true;
+	}
     }
+    ee_update_offset = offs;
+}
+
+static inline void update_eeprom(void)
+{
+    ee_update_offset = 0;
+    EECR |= 1 << EERIE;
+}
+static inline bool eeprom_done(void)
+{
+    return !(EECR & ((1 << EERIE)|(1 << EEPE)));
+}
+
+#endif
+
+static inline __attribute__((const))
+uint8_t inactive(bool active_low, uint8_t mask) {
+    return active_low ? mask : 0;
 }
 
 static void init(void)
@@ -46,11 +80,9 @@ static void init(void)
     /* Initializing... */
     cli();
 
-    /* Interrupt control */
-    GIMSK = 0;
-    PCMSK = 0;
-
     /*
+     * Default configuration; see pins.h
+     *
      * Inputs:
      * OFF#    - PB5 - pin 1 - power off from mainboard
      * BUTTON# - PB3 - pin 2 - pushbutton
@@ -61,15 +93,17 @@ static void init(void)
      * SSR     - PB2 - pin 7 - SSR enable (active high)
      *
      * Initially drive everything to its inactive state; enable
-     * pullups on inputs.
+     * pullups on inputs (set to 1 regardless of sense)
      */
-    PORTB = (uint8_t)~((LED_COMMON_ANODE ? 0 : PINMASK_LEDS)|PINMASK_SSR);
+    PORTB = inactive(LED_COMMON_ANODE, PINMASK_LEDS) |
+	inactive(PIN_SSR_SENSE, PINMASK_SSR) |
+	PINMASK_BUTTON | PINMASK_OFF;
     MCUCR = 0x00;		/* Enable input pullups, sleep mode = idle */
     DDRB  = PINMASK_LEDS|PINMASK_SSR;
 
     /* Timer interrupt and status */
-    TIMSK  = 0;
-    TIFR   = 0;
+    TIMSK  = (1 << 1) | (1 << 2);	/* Enable timer 0&1 overflow IRQs */
+    TIFR   = 0xff;			/* Clear all pending interrupts */
 
     /* COMxx values */
 #define TCRCOM		(LED_COMMON_ANODE ? 3 : 2)
@@ -101,159 +135,176 @@ static void init(void)
     TCCR0B = (0 << 3) | (1 << 0);
 
     /* Disable all LEDs */
-    set_led(LED_R, 0);
-    set_led(LED_G, 0);
-    set_led(LED_B, 0);
+    OCR0A = OCR0B = OCR1B = 0;
 
-    /* Enable to PWM counters */
+    /* Enable PWM counters */
     GTCCR = GTCCR_CONFIG;
 
-    /* If we ever do interrupt stuff, should be OK now... */
+    /* Disable pin interrupts */
+    GIMSK = 0;
+    PCMSK = 0;
+
+#ifdef EEPROM
+    /* Get EEPROM copy in RAM */
+    eeprom_read_block((void *)&eec, &eeprom, sizeof ee);
+    ee = eec;
+    EECR = 0;			/* For future programming operations */
+#endif
+
+    /* Global enable interrupts */
     sei();
 }
 
+/* Raw checks of the button and SSR inputs */
 static inline bool button_pressed(void)
 {
-    return !((PINB >> PIN_BUTTON) & 1);
+    return ((PINB ^ PINB_XOR) >> PIN_BUTTON) & 1;
 }
-static inline bool poweroff_input(void)
+static inline void set_power_on(bool power)
 {
-    return !((PINB >> PIN_OFF) & 1);
+    if (power ^ (bool)PIN_SSR_SENSE) {
+	PORTB |= PINMASK_SSR;
+    } else {
+	PORTB &= ~PINMASK_SSR;
+    }
 }
 
 static void set_button_led(bool button)
 {
-    set_led(LED_G, button ? LEDG_PWM : 0);
+    set_led(LED_G, button ? LED_ON : LED_OFF);
 }
 
 static void set_power_led(bool power)
 {
-    set_led(LED_R, power ? 0 : LEDR_PWM);
-    set_led(LED_B, power ? LEDB_PWM : 0);
+    set_led(LED_R, power ? LED_OFF : LED_ON);
+    set_led(LED_B, power ? LED_ON : LED_OFF);
 }
-
-static inline bool power_is_on(void)
+static void set_power_led_init(bool power)
 {
-    return (PORTB >> PIN_SSR) & 1;
+    set_led(LED_R, power ? LED_OFF : LED_FLASH);
+    set_led(LED_B, power ? LED_ON  : LED_OFF);
 }
 
-static void loop(void)
+
+/*
+ * Nonvolatile last power status; used to detect power failures.
+ * After a power failure when the power was ON, flash the button
+ * for attention.
+ */
+
+/* Time constants in timer ticks */
+#define MIN_DELAY	512	/* Time before deglitch assumed stable */
+#define MIN_OFF_DELAY	8192	/* Time before power off is enabled */
+#define BUTTON_PRESS	1024	/* Time before button is considered pressed */
+#define BUTTON_CANCEL	12288	/* Time before button press is cancelled */
+
+enum button_mode {
+    BUTTON_RELEASED,
+    BUTTON_DELAYING,
+    BUTTON_ACTIVE,
+    BUTTON_CANCELLED
+};
+
+static void __attribute__((noreturn)) loop(void)
 {
     /*
      * Poll both the pushbutton and the power off input with
      * debounce. The power off input is ignored if the power is
      * already off.
      */
-    bool power  = power_is_on();
-    bool button = button_pressed();
+    bool     button_state     = false;
+    uint8_t  button_mode      = BUTTON_RELEASED;
+    bool     power            = false;
+    bool     old_off_state    = false;
+    bool     delay_armed      = false;
+    bool     off_armed        = false;
+    uint16_t button_when      = 0;
 
-    /* Debounce counters */
-    unsigned int button_ctr   = button ? 32768UL : 0;
-    unsigned int poweroff_ctr = 0;
-    unsigned int poweron_ctr  = 0; /* Time after poweron until OFF valid  */
-
-    const unsigned int button_ctr_incr = 65536ULL/256;
-    const unsigned int button_ctr_decr = 65536ULL/16;
-
-    const unsigned int poweroff_incr   = 65536ULL/256;
-    const unsigned int poweron_incr    = 1;
-
-    set_power_led(power);
-    set_button_led(button);
+    set_all_led(LED_OFF);
 
     while (true) {
-	if (button_pressed()) {
-	    if (button_ctr <= ~button_ctr_incr) {
-		button_ctr += button_ctr_incr;
-	    } else if (!button) {
-		set_button_led(button = true);
-		set_power_led(power = !power);
-		PINB = PINMASK_SSR; /* Toggle SSR output */
-	    }
-	} else {
-	    if (button_ctr >= button_ctr_decr) {
-		button_ctr -= button_ctr_decr;
-	    } else if (button) {
-		set_button_led(button = false);
-	    }
+	uint16_t now;
+
+	cli();
+	now          = _timer.tick.w[0];
+	button_state = _timer.button.state;
+	sei();
+
+	/* Let the debounce stabilize */
+	if (!delay_armed) {
+	    if (now < MIN_DELAY)
+		continue;
+	    delay_armed = true;
+	    set_power_led_init(power);
+	    set_button_led(button_state);
+	    button_mode = button_state
+		? BUTTON_CANCELLED : BUTTON_RELEASED;
 	}
 
-	if (power) {
-	    if (poweron_ctr <= ~poweron_incr) {
-		poweron_ctr += poweron_incr;
-	    }
-	} else {
-	    poweron_ctr = 0;
-	}
-
-	if (poweron_ctr > ~poweron_incr) {
-	    if (poweroff_input()) {
-		if (poweroff_ctr <= ~poweroff_incr) {
-		    poweroff_ctr += poweroff_incr;
-		} else if (power) {
-		    set_power_led(power = false);
-		    PORTB &= ~PINMASK_SSR;
+	if (!button_state) {
+	    /* Button released */
+	    if (button_mode != BUTTON_RELEASED) {
+		if (button_mode == BUTTON_ACTIVE) {
+		    power = !power;
+		    set_power_on(power);
+		    set_power_led(power);
 		}
-	    } else {
-		if (poweroff_ctr >= poweroff_incr) {
-		    poweroff_ctr -= poweroff_incr;
-		}
+		set_button_led(false);
+		button_mode = BUTTON_RELEASED;
 	    }
 	} else {
-	    poweroff_ctr = 0;
-	}
-    }
-}
-
-static inline void delay(unsigned int multiplier)
-{
-    _delay_ms(multiplier * 2);
-}
-
-static void test_leds(void)
-{
-    struct rgbs {
-	int8_t r, g, b;
-    };
-    static const PROGMEM struct rgbs fades[] = {
-	{ +1,  0,  0 },		/* K > R */
-	{  0, +1,  0 },		/* R > Y */
-	{ -1,  0,  0 },		/* Y > G */
-	{  0,  0, +1 },		/* G > C */
-	{  0, -1,  0 },		/* C > B */
-	{ +1,  0,  0 },		/* B > M */
-	{  0, +1,  0 },		/* M > W */
-	{ -1, -1, -1 }		/* W > K */
-    };
-    uint8_t r, g, b;
-
-    set_led(LED_R, r = 0);
-    set_led(LED_G, g = 0);
-    set_led(LED_B, b = 0);
-
-    for (uint8_t n = 0; n < 8; n++) {
-	const struct rgbs *fade = fades;
-	for (uint8_t nf = 0; nf < ARRAY_SIZE(fades); nf++) {
-	    int8_t dr = fade->r;
-	    int8_t dg = fade->g;
-	    int8_t db = fade->b;
-	    fade++;
-	    for (uint8_t i = 1; i; i++) {
-		delay(1);
-		set_led(LED_R, r += dr);
-		set_led(LED_G, g += dg);
-		set_led(LED_B, b += db);
+	    uint16_t hold_time = now - button_when;
+	    /* Button pressed */
+	    switch (button_mode) {
+	    case BUTTON_RELEASED:
+		button_when = now;
+		set_button_led(true);
+		button_mode = BUTTON_DELAYING;
+		break;
+	    case BUTTON_DELAYING:
+		if (hold_time >= BUTTON_PRESS) {
+		    set_power_led(!power);
+		    button_mode = BUTTON_ACTIVE;
+		}
+		break;
+	    case BUTTON_ACTIVE:
+		if (hold_time >= BUTTON_CANCEL) {
+		    set_power_led(power);
+		    set_button_led(false);
+		    button_mode = BUTTON_CANCELLED;
+		}
+		break;
+	    default:
+		break;
 	    }
 	}
-    }
 
-    delay(32);
+	uint8_t off_state = _timer.off.state;
+	if (!off_armed) {
+	    if (now < MIN_OFF_DELAY) {
+		old_off_state = off_state;
+		continue;
+	    }
+	    off_armed = true;
+	}
+
+	if (off_state && !old_off_state) {
+	    set_power_on(power = false);
+	    set_power_led(false);
+	    if (button_mode != BUTTON_RELEASED) {
+		button_mode = BUTTON_CANCELLED;
+		set_button_led(false);
+	    }
+	}
+	old_off_state = off_state;
+
+	/* Nothing to do until next interrupt */
+	asm volatile("sleep");
+    }
 }
 
 int main(void)
 {
     init();
-    if (button_pressed())
-	test_leds();
     loop();
 }
