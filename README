@@ -4,9 +4,15 @@ microcontroller.
 
 The bracket in this tree holds a 16 mm (hole diameter) pushbutton.
 
-Either common anode or common cathode LED buttons can be used; the
-prebuilt firmware is configured for common anode (see
-LED_COMMON_ANODE.)
+Either common anode or common cathode LED buttons can be used, but
+both the board *and* the firmware needs to be configured accordingly.
+The prebuilt firmware is configured for common anode; for common
+cathode, change LED_COMMON_ANODE in pins.h, or by change the first
+byte of the EEPROM data file (onoff.eeprom.bin) to 0x28 rather than
+0x3b (clear bits 4, 1, 0.)
+
+See the comment near the top of sw/onoff.c for what configuration
+options can be set in the EEPROM.
 
 It is not technically necessary to use an RGB pushbutton. A
 one- or two-color pushbutton can be used just as well; the
@@ -17,9 +23,13 @@ prebuilt firmware uses the LEDs as follows:
 	GREEN	- Button is pressed
 	BLUE	- Power on
 
-As the circuit is very simple, I used a stripboard rather than waiting
-for a custom PCB. However, a custom PCB would be smaller, and could be
-made more robust.
+As the circuit is very simple, I originally used a stripboard rather
+than waiting for a custom PCB. However, this turned out to be
+mechanically unstable and cracked after a bit. Instead, I ended up
+designing a PCB; the design files and a .zip file with CAM files
+compatible with JLCPCB (https://jlcpcb.com/) are included. Uploading
+that .zip file to their website and they make 5 circuit boards for a
+few USD including the cheapest shipping.
 
 The firmware uses avr-gcc and avr-libc; it does not require the
 Arduino build environment or boot loader. Note that since all 6 I/O
@@ -37,8 +47,8 @@ used; simply rotate the connector on the stripboard appropriately.
 Instead of using an SSR, you can opt to upgrade your power supply to
 one which supports remote power control. However, most power supplies
 are *active low* unlike the SSR, so in that case you will need to
-change the polarity of the output in the firmware; you should also
-remove resistor R4.
+change the polarity of the output in the firmware (or set bit 2 in
+byte 0 of the EEPROM); you should also remove resistor R4.
 
 To enable the M81 poweroff G-code command, you need a patch to the
 mainboard firmware to define the following options in the Marlin

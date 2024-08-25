@@ -48,6 +48,8 @@ uint8_t inactive(bool active_low, uint8_t mask) {
     return active_low ? mask : 0;
 }
 
+static uint8_t portb_power_off;	/* PORTB output value with SSR off */
+
 static void init(void)
 {
     /* Initializing... */
@@ -71,7 +73,8 @@ static void init(void)
      * Initially drive everything to its inactive state; enable
      * pullups on inputs (set to 1 regardless of sense)
      */
-    PORTB = ee.polarity | PINMASK_BUTTON | PINMASK_OFF;
+    portb_power_off = ee.polarity | PINMASK_BUTTON | PINMASK_OFF;
+    PORTB = portb_power_off;
     MCUCR = 0x00;		/* Enable input pullups, sleep mode = idle */
     DDRB  = PINMASK_LEDS|PINMASK_SSR;
 
@@ -126,11 +129,10 @@ static void init(void)
 
 static inline void set_power_on(bool power)
 {
-    if (power ^ !!(ee.polarity & PINMASK_SSR)) {
-	PORTB |= PINMASK_SSR;
-    } else {
-	PORTB &= ~PINMASK_SSR;
-    }
+    uint8_t portb = portb_power_off;
+    if (power)
+	portb ^= PINMASK_SSR;
+    PORTB = portb;
 }
 
 static void set_button_led(bool button)
@@ -191,7 +193,7 @@ static void __attribute__((noreturn)) loop(void)
 
 	/* Let the debounce stabilize */
 	if (!delay_armed) {
-	    if (now < MIN_DELAY)
+	    if ((now >> 8) < ee.min_delay)
 		continue;
 	    delay_armed = true;
 	    set_power_led_init(power);
@@ -212,7 +214,7 @@ static void __attribute__((noreturn)) loop(void)
 		button_mode = BUTTON_RELEASED;
 	    }
 	} else {
-	    uint16_t hold_time = now - button_when;
+	    uint8_t hold_time = (now - button_when) >> 8;
 	    /* Button pressed */
 	    switch (button_mode) {
 	    case BUTTON_RELEASED:
@@ -221,13 +223,13 @@ static void __attribute__((noreturn)) loop(void)
 		button_mode = BUTTON_DELAYING;
 		break;
 	    case BUTTON_DELAYING:
-		if (hold_time >= BUTTON_PRESS) {
+		if (hold_time >= ee.button_press) {
 		    set_power_led(!power);
 		    button_mode = BUTTON_ACTIVE;
 		}
 		break;
 	    case BUTTON_ACTIVE:
-		if (hold_time >= BUTTON_CANCEL) {
+		if (hold_time >= ee.button_cancel) {
 		    set_power_led(power);
 		    set_button_led(false);
 		    button_mode = BUTTON_CANCELLED;
@@ -240,7 +242,7 @@ static void __attribute__((noreturn)) loop(void)
 
 	uint8_t off_state = _timer.off.state;
 	if (!off_armed) {
-	    if (now < MIN_OFF_DELAY) {
+	    if ((now >> 8) < ee.min_off_delay) {
 		old_off_state = off_state;
 		continue;
 	    }
