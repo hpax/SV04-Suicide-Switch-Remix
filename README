@@ -2,6 +2,10 @@ Soft-off power button for the Sovol SV04 3D printer, using an LED
 pushbutton, a miniature 5V standby power supply module, and an ATtiny85
 microcontroller.
 
+(I used ATtiny85 because I had them on hand. ATtiny25/45 would work
+just as well, but seem to be hard to get in DIP8 packages anymore. The
+-V versions would work as well, but are typically more expensive.)
+
 The bracket in this tree holds a 16 mm (hole diameter) pushbutton.
 
 Either common anode or common cathode LED buttons can be used, but
