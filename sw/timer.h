@@ -28,7 +28,6 @@ struct timer_state {
 	uint8_t flash_ctr;
 	int8_t  flash_dir;
 	uint8_t flash_val;
-	uint8_t flash_speed;
 	uint8_t mode[3];
     } led;
 } __attribute__((aligned(32)));	/* Keep from crossing 256-byte boundaries */

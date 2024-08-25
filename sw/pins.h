@@ -41,6 +41,10 @@
 
 #define PINMASK_LEDS	(PINMASK_LED_R|PINMASK_LED_G|PINMASK_LED_B)
 
-#define PINB_XOR ((PIN_BUTTON_SENSE << PIN_BUTTON)|(PIN_OFF_SENSE << PIN_OFF))
+#define PINB_POLARITY					     \
+    ((PIN_BUTTON_SENSE << PIN_BUTTON) |			     \
+     (PIN_OFF_SENSE << PIN_OFF) |			     \
+     (PIN_SSR_SENSE << PIN_SSR) |			     \
+     (LED_COMMON_ANODE ? PINMASK_LEDS : 0))
 
 #endif

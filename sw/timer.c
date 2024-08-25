@@ -5,6 +5,7 @@
 #include "timer.h"
 #include "pins.h"
 #include "led.h"
+#include "eeprom.h"
 
 volatile struct timer_state _timer = {
     .tick   = { .l = 0 },
@@ -14,19 +15,9 @@ volatile struct timer_state _timer = {
 	.flash_val   = 0,
 	.flash_dir   = 1,
 	.flash_ctr   = 0,
-	.flash_speed = 8 - 1,
 	.mode = { LED_OFF, LED_OFF, LED_OFF }
     }
 };
-
-#define PIN_TO_LED(x)			\
-    ((PIN_LED_R == (x)) ? LED_R :	\
-     (PIN_LED_G == (x)) ? LED_G :	\
-     LED_B)
-
-#define LED_OC0A PIN_TO_LED(PIN_5)	/* OC0A == PB0 == pin 5 */
-#define LED_OC0B PIN_TO_LED(PIN_6)	/* OC0B == PB1 == pin 6 */
-#define LED_OC1B PIN_TO_LED(PIN_3)	/* OC1B == PB4 == pin 3 */
 
 /*
  * Timer 0 is used for the blue and green LED PWM and for
@@ -54,7 +45,7 @@ ISR(TIMER0_OVF_vect, ISR_BLOCK)
     uint8_t ctr = _timer.led.flash_ctr;
     if (unlikely(!ctr)) {
 	/* LED flash update */
-	ctr = _timer.led.flash_speed;
+	ctr = ee.flash_speed;
 	int8_t dir = _timer.led.flash_dir;
 	flv += dir;
 	_timer.led.flash_val = flv;
@@ -90,7 +81,7 @@ ISR(TIMER1_OVF_vect, ISR_BLOCK)
     bool state;
     uint8_t ctr;
 
-    v = PINB ^ PINB_XOR;
+    v = PINB ^ ee.polarity;
 
     state = !!(v & PINMASK_BUTTON);
     if (state == _timer.button.state) {
@@ -119,9 +110,4 @@ ISR(TIMER1_OVF_vect, ISR_BLOCK)
 	}
     }
     _timer.off.ctr = ctr;
-}
-
-uint16_t timer_test(void)
-{
-    return timer_us16();
 }

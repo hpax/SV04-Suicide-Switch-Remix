@@ -88,7 +88,7 @@ spotless: clean
 
 # Not really sure why we need to disable verification
 flash_minipro: $(PROJ).zip
-	if [ -s $(PROJ).fuses.bin ]; then \
+	if [ -s $(PROJ).fuses.conf ]; then \
 		minipro -p $(MCU_MINIPRO) -c config -w $(PROJ).fuses.conf; \
 	fi
 	if [ -s $(PROJ).flash.bin ]; then \

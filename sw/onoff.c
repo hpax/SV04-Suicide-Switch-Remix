@@ -2,6 +2,7 @@
 #include "pins.h"
 #include "timer.h"
 #include "led.h"
+#include "eeprom.h"
 
 /* Fuse settings */
 FUSES = {
@@ -13,62 +14,34 @@ FUSES = {
     .extended	= EFUSE_DEFAULT
 };
 
-#ifdef EEPROM
+/* Default flash speed on power up (units of 260 ms, minus one) */
+#define FLASH_SPEED	7
+
+/* Default delays in units of 65.536 ms */
+#define MIN_DELAY	2	/* Time before deglitch assumed stable */
+#define MIN_OFF_DELAY	32	/* Time before power off is enabled */
+#define BUTTON_PRESS	4	/* Time before button is considered pressed */
+#define BUTTON_CANCEL	48	/* Time before button press is cancelled */
 
 /*
- * Interrupt-driven EEPROM handler. Two copies of the EEPROM are cached
- * in memory: one which reflects the current desired state, and one which
- * reflects the current programmed state.
+ * EEPROM variables - used for configuration to avoid needing to
+ * recompile the firmware to tweak these variables.
  */
-struct eeprom_struct {
-    bool power_status;
+static EEMEM struct eeprom eeprom = {
+    .polarity           = PINB_POLARITY,
+    .flash_speed	= FLASH_SPEED,
+    .min_delay          = MIN_DELAY,
+    .min_off_delay      = MIN_OFF_DELAY,
+    .button_press       = BUTTON_PRESS,
+    .button_cancel      = BUTTON_CANCEL
 };
-static EEMEM struct eeprom_struct eeprom;
-static volatile struct eeprom_struct ee; /* Data requested to eeprom */
-static struct eeprom_struct eec; /* Copy of the programmed eeprom */
-static volatile uint8_t ee_update_offset;
+struct eeprom ee;
 
-ISR(EE_RDY_vect, ISR_BLOCK)
+static void load_eeprom(void)
 {
-    uint8_t offs = ee_update_offset;
-    bool done = false;
-
-    while (!done) {
-	const volatile uint8_t * const eep = (const uint8_t *)&ee;
-	uint8_t * const eecp = (uint8_t *)&eec;
-	uint8_t o = offs;
-
-	offs++;
-	if (offs == (uint8_t)sizeof eeprom) {
-	    EECR &= ~(1 << EERIE);
-	    done = true;
-	}
-
-	uint8_t v = eep[o];
-	if (v != eecp[o]) {
-	    uint16_t a = (size_t)&eeprom + offs;
-	    EEARH = a >> 8;
-	    EEARL = (uint8_t)a;
-	    EEDR = v;
-	    EECR |= 1 << EEMPE;
-	    EECR |= 1 << EEPE;
-	    done = true;
-	}
-    }
-    ee_update_offset = offs;
+    eeprom_read_block((void *)&ee, &eeprom, sizeof ee);
+    EECR = 0;			/* For future programming operations */
 }
-
-static inline void update_eeprom(void)
-{
-    ee_update_offset = 0;
-    EECR |= 1 << EERIE;
-}
-static inline bool eeprom_done(void)
-{
-    return !(EECR & ((1 << EERIE)|(1 << EEPE)));
-}
-
-#endif
 
 static inline __attribute__((const))
 uint8_t inactive(bool active_low, uint8_t mask) {
@@ -79,6 +52,9 @@ static void init(void)
 {
     /* Initializing... */
     cli();
+
+    /* Get EEPROM copy in RAM */
+    load_eeprom();
 
     /*
      * Default configuration; see pins.h
@@ -95,9 +71,7 @@ static void init(void)
      * Initially drive everything to its inactive state; enable
      * pullups on inputs (set to 1 regardless of sense)
      */
-    PORTB = inactive(LED_COMMON_ANODE, PINMASK_LEDS) |
-	inactive(PIN_SSR_SENSE, PINMASK_SSR) |
-	PINMASK_BUTTON | PINMASK_OFF;
+    PORTB = ee.polarity | PINMASK_BUTTON | PINMASK_OFF;
     MCUCR = 0x00;		/* Enable input pullups, sleep mode = idle */
     DDRB  = PINMASK_LEDS|PINMASK_SSR;
 
@@ -105,8 +79,10 @@ static void init(void)
     TIMSK  = (1 << 1) | (1 << 2);	/* Enable timer 0&1 overflow IRQs */
     TIFR   = 0xff;			/* Clear all pending interrupts */
 
-    /* COMxx values */
-#define TCRCOM		(LED_COMMON_ANODE ? 3 : 2)
+    /* COMxx bit 0 sets the polarity of PWM output */
+    uint8_t oc0a_pol = (ee.polarity & 0x01) << (6-0); /* PB0 */
+    uint8_t oc0b_pol = (ee.polarity & 0x02) << (4-1); /* PB1 */
+    uint8_t oc1b_pol = (ee.polarity & 0x10) << (4-4); /* PB4 */
 
     /*
      * Timer 1 programming
@@ -116,13 +92,13 @@ static void init(void)
      * priority on pin PB1.
      */
     /* OC1B enabled, inverted PWM mode;  */
-#define GTCCR_CONFIG	((1 << 6) | (TCRCOM << 4))
+    uint8_t gtccr_config = (1 << 6) | (2 << 5) | oc1b_pol;
     /* Bits to be held until after configuration */
 #define GTCCR_SYNC	((1 << 7) | (1 << 0))
 
-    GTCCR = GTCCR_CONFIG | GTCCR_SYNC;
+    GTCCR = gtccr_config | GTCCR_SYNC;
     PLLCSR = 0;
-    TCCR1 = (1 << 7) | (0 << 6) | (TCRCOM << 4) | (1 << 0);
+    TCCR1 = (1 << 7) | (0 << 6) | (2 << 4) | (1 << 0) | oc1b_pol;
     OCR1C = 255;		     /* Run from 0 to 255 */
 
     /*
@@ -131,38 +107,26 @@ static void init(void)
      * OC0A/OC0B are set up in inverting phase correct PWM mode.
      * This gives a dynamic range from (0-255):255.
      */
-    TCCR0A = (TCRCOM << 6) | (TCRCOM << 4) | (1 << 0);
+    TCCR0A = (2 << 6) | (2 << 4) | (1 << 0) | oc0a_pol | oc0b_pol;
     TCCR0B = (0 << 3) | (1 << 0);
 
     /* Disable all LEDs */
     OCR0A = OCR0B = OCR1B = 0;
 
     /* Enable PWM counters */
-    GTCCR = GTCCR_CONFIG;
+    GTCCR = gtccr_config;
 
     /* Disable pin interrupts */
     GIMSK = 0;
     PCMSK = 0;
 
-#ifdef EEPROM
-    /* Get EEPROM copy in RAM */
-    eeprom_read_block((void *)&eec, &eeprom, sizeof ee);
-    ee = eec;
-    EECR = 0;			/* For future programming operations */
-#endif
-
     /* Global enable interrupts */
     sei();
 }
 
-/* Raw checks of the button and SSR inputs */
-static inline bool button_pressed(void)
-{
-    return ((PINB ^ PINB_XOR) >> PIN_BUTTON) & 1;
-}
 static inline void set_power_on(bool power)
 {
-    if (power ^ (bool)PIN_SSR_SENSE) {
+    if (power ^ !!(ee.polarity & PINMASK_SSR)) {
 	PORTB |= PINMASK_SSR;
     } else {
 	PORTB &= ~PINMASK_SSR;
@@ -192,11 +156,6 @@ static void set_power_led_init(bool power)
  * for attention.
  */
 
-/* Time constants in timer ticks */
-#define MIN_DELAY	512	/* Time before deglitch assumed stable */
-#define MIN_OFF_DELAY	8192	/* Time before power off is enabled */
-#define BUTTON_PRESS	1024	/* Time before button is considered pressed */
-#define BUTTON_CANCEL	12288	/* Time before button press is cancelled */
 
 enum button_mode {
     BUTTON_RELEASED,
