@@ -33,5 +33,10 @@ U1   - ATtiny85-PU (25, 25V, 45, 45V or 85V also usable)
        ! optional, for aestetics
      - 1x3 JST-XH jumper cable
      - 2x PCB standoff (PC standard 4 mm holes)
+       ! can be metal screw in (typically a U.S. 6-32 tapped hole) or adhesive
+         nylon, which does not require making additional screw holes
+	 in the case.)
+     - 2x 20 mm M3 machine screws (for mounting bracket)
+     - 2x M3 T-nuts (for mounting bracket)
 
 See wiring.jpg for how to build the wiring harness.
