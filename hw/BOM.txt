@@ -12,6 +12,7 @@ JP1  - 1x3 straight 2.54" pin header
        ! optional: can also be permanently configured with a piece of wire
 R1-3 - 3x 470 ohm 0.25 W resistor
 R4   - 4.7 kohm 0.25 W resistor
+C1   - 100 nF (0.1 µF) ceramic or polymer capacitor
 U1   - ATtiny85-PU (25, 25V, 45, 45V or 85V also usable)
      - 8-pin DIP socket
      - 16 mm RGB pushbutton
