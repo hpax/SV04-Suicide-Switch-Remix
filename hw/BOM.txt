@@ -1,0 +1,34 @@
+Bill of Materials:
+
+J1   - 1x2 angled or straight 2.54" pin header
+       ! optional, for testing, SSR bypass, or +5V standby power output
+J2   - 2x3 angled 2.54" pin header
+J3   - JST-B3B-XH header (1x3 JST XH)
+       ! see README for how to orient this header!!
+J4   - 1x2 angled 2.54" pin header
+J5   - 1x9 straight 2.54" pin header
+J6   - 1x3 angled 2.54" pin header
+JP1  - 1x3 straight 2.54" pin header
+       ! optional: can also be permanently configured with a piece of wire
+R1-3 - 3x 470 ohm 0.25 W resistor
+R4   - 4.7 kohm 0.25 W resistor
+U1   - ATtiny85-PU (25, 25V, 45, 45V or 85V also usable)
+     - 8-pin DIP socket
+     - 16 mm RGB pushbutton
+       ! other sizes possible with a different bracket design
+       ! common anode or common cathode both OK (see README)
+     - 5V miniature power supply WX-DC12003 or similar (100 mA or more)
+       ! check the voltage: WX-DC12003 is available in multiple versions
+     - 2x spade lug FDD2 25-187
+     - 2x fork lug SV2-5S (M5)
+     - 2x fork lug SV1-5S (M5)
+     - wire with 1x2 DuPont connector, for SSR
+     - wire with 1x3 DuPont connector, for standby AC power
+     - wire with 2x3 DuPont connector, for pushbutton
+     - 2x16 AWG cable
+     - short stretch of black 0.5" cable hose or shrink wrap
+       ! optional, for aestetics
+     - 1x3 JST-XH jumper cable
+     - 2x PCB standoff (PC standard 4 mm holes)
+
+See wiring.jpg for how to build the wiring harness.
