@@ -15,8 +15,8 @@ cathode, change LED_COMMON_ANODE in pins.h, or by change the first
 byte of the EEPROM data file (onoff.eeprom.bin) to 0x28 rather than
 0x3b (clear bits 4, 1, 0.)
 
-See the comment near the top of sw/onoff.c for what configuration
-options can be set in the EEPROM.
+See the comment near the top of sw/eeprom.h for all the configuration
+options can be set using the EEPROM without recompiling.
 
 It is not technically necessary to use an RGB pushbutton. A
 one- or two-color pushbutton can be used just as well; the

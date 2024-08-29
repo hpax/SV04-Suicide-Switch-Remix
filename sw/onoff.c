@@ -180,11 +180,15 @@ static void __attribute__((noreturn)) loop(void)
     bool     delay_armed      = false;
     bool     off_armed        = false;
     uint16_t button_when      = 0;
+    uint16_t power_when       = 0;
 
     set_all_led(LED_OFF);
 
     while (true) {
 	uint16_t now;
+
+	/* Nothing to do until next interrupt */
+	asm volatile("sleep");
 
 	cli();
 	now          = _timer.tick.w[0];
@@ -240,9 +244,21 @@ static void __attribute__((noreturn)) loop(void)
 	    }
 	}
 
+	if (!power) {
+	    /*
+	     * A signal from the mainboard can never be valid when
+	     * the mainboard itself is turned off. The arming timer
+	     * runs from when power is turned on via the SSR.
+	     */
+	    off_armed   = false;
+	    power_when  = now;
+	    continue;
+	}
+
 	uint8_t off_state = _timer.off.state;
 	if (!off_armed) {
-	    if ((now >> 8) < ee.min_off_delay) {
+	    uint16_t hold_time = now - power_when;
+	    if ((hold_time >> 8) < ee.min_off_delay) {
 		old_off_state = off_state;
 		continue;
 	    }
@@ -258,9 +274,6 @@ static void __attribute__((noreturn)) loop(void)
 	    }
 	}
 	old_off_state = off_state;
-
-	/* Nothing to do until next interrupt */
-	asm volatile("sleep");
     }
 }
 
