@@ -1,19 +1,23 @@
-Soft-off power button for the Sovol SV04 3D printer, using an LED
-pushbutton, a miniature 5V standby power supply module, and an ATtiny85
-microcontroller.
+Soft-off power button for the Sovol SV04 3D printer, using an RGB LED
+pushbutton, a miniature 5V standby power supply module, and an
+ATtiny85 microcontroller.
 
 (I used ATtiny85 because I had them on hand. ATtiny25/45 would work
 just as well, but seem to be hard to get in DIP8 packages anymore. The
 -V versions would work as well, but are typically more expensive.)
 
-The bracket in this tree holds a 16 mm (hole diameter) pushbutton.
+The bracket in this tree holds a 16 mm (hole diameter) pushbutton. See
+hw/powerctl-sch.pdf for the expected pinout of the connection to the
+control board.
 
-Either common anode or common cathode LED buttons can be used, but
-both the board *and* the firmware needs to be configured accordingly.
+Either common anode or common cathode LED buttons can be used: both the
+board jumper/connection JP1 and the firmware EEPROM needs to
+configured accordingly.
+
 The prebuilt firmware is configured for common anode; for common
-cathode, change LED_COMMON_ANODE in pins.h, or by change the first
-byte of the EEPROM data file (onoff.eeprom.bin) to 0x28 rather than
-0x3b (clear bits 4, 1, 0.)
+cathode, change byte 0 of the EEPROM data file (onoff.eeprom.bin) to
+0x28 rather than 0x3b (clear bits 4, 1, 0) or change LED_COMMON_ANODE
+in sw/leds.h and recompile.
 
 See the comment near the top of sw/eeprom.h for all the configuration
 options can be set using the EEPROM without recompiling.
@@ -47,6 +51,9 @@ the latter. The pin that should be connected to the microcontroller
 matches the one facing to the REAR of the SV04 mainboard connector J2
 (yellow color on the adjacent wires.) Either kind of cable can be
 used; simply rotate the connector on the stripboard appropriately.
+
+The silkscreen on the PCB reflects the crossover cable configuration,
+since that is what I was using.
 
 Instead of using an SSR, you can opt to upgrade your power supply to
 one which supports remote power control. However, most power supplies
