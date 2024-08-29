@@ -21,7 +21,8 @@ U1   - ATtiny85-PU (25, 25V, 45, 45V or 85V also usable)
      - 5V miniature power supply WX-DC12003 or similar (100 mA or more)
        ! check the voltage: WX-DC12003 is available in multiple
        versions
-     - SSR-25-DA solid state relay (or similar)
+     - SSR-25-DA solid state relay (recommend min 15 A, 5 V activation voltage)
+     - mounting screws for SSR
      - 2x spade lug FDD2 25-187
      - 2x fork lug SV2-5S (M5)
      - 2x fork lug SV1-5S (M5)
